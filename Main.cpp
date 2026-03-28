@@ -1,6 +1,7 @@
 #pragma comment(lib, "d3d11.lib")
 #include <iostream>
 #include <string>
+#include <windows.h>
 #include <chrono>
 #include < cctype >
 #include <ctype.h>
@@ -9,6 +10,11 @@
 #include <tlhelp32.h>
 
 using namespace std;
+
+const BYTE expected[] = { 0x4C, 0x8B, 0xD1, 0xB8 };
+uintptr_t g_ntOpen = 0;
+extern "C" DWORD g_ssn = 0;
+extern "C" uintptr_t g_syscallAddr = 0;
 
 typedef LONG NTSTATUS;
 
@@ -75,6 +81,13 @@ typedef struct _SYSTEM_PROCESS_INFORMATION {
     HANDLE UniqueProcessId;
 } SYSTEM_PROCESS_INFORMATION, * PSYSTEM_PROCESS_INFORMATION;
 
+extern "C" NTSTATUS Syscall_NtOpenProcess(
+    PHANDLE ProcessHandle,
+    ACCESS_MASK DesiredAccess,
+    POBJECT_ATTRIBUTES ObjectAttributes,
+    PCLIENT_ID ClientId
+);
+
 DWORD MyHasher(const char* word) {
     DWORD hash = 4291;
     int c;
@@ -109,6 +122,21 @@ uintptr_t GetFunctionAddress(DWORD targetHash) {
         }
     }
 	return functionAddress;
+}
+
+bool Compare(uintptr_t address, BYTE*pattern) {
+    BYTE* mem = (BYTE*)address;
+    if (memcmp((void*)g_ntOpen, expected, 4) == 0) {
+         g_ssn = *(DWORD*)(g_ntOpen + 4);
+
+    }
+    for (size_t i = 0; i < 32; i++) {
+        if (mem[i] == 0x0F and mem[i + 1] == 0x05) {
+            g_syscallAddr = address + i;
+            break;
+        }
+    }
+    return true;
 }
 
 int main() {
@@ -154,25 +182,69 @@ int main() {
     f_NtOpenProcess _NtOpenProcess;
     f_NtReadVirtualMemory _NtReadVirtualMemory;
     f_NtWriteVirtualMemory _NtWriteVirtualMemory;
+    f_NtQuerySystemInformation _NtQuerySystemInformation;
     _NtOpenProcess = (f_NtOpenProcess)ntOpen;
     _NtReadVirtualMemory = (f_NtReadVirtualMemory)pNtRead;
     _NtWriteVirtualMemory = (f_NtWriteVirtualMemory)pNtWrite;
+    _NtQuerySystemInformation = (f_NtQuerySystemInformation)pNtSysInfo;
 
-    void* buffer = malloc(size_t(buffer));
-    PSYSTEM_PROCESS_INFORMATION pСurrent = (PSYSTEM_PROCESS_INFORMATION)buffer;
+    ULONG bufferSize = 0;
+    _NtQuerySystemInformation(SystemProcessInformation, NULL, 0, &bufferSize);
+    void* buffer = malloc(size_t(bufferSize));
+    _NtQuerySystemInformation(SystemProcessInformation, buffer, bufferSize, &bufferSize);
+    PSYSTEM_PROCESS_INFORMATION pCurrent = (PSYSTEM_PROCESS_INFORMATION)buffer;
     DWORD targetPid = 0;
 
-    do {
-        pСurrent = (PSYSTEM_PROCESS_INFORMATION)((uintptr_t)pСurrent + pСurrent->NextEntryOffset);
-        if (pСurrent->ImageName.Buffer != NULL) {
-            if (_wcsicmp(pСurrent->ImageName.Buffer, L"cs2.exe") == 0) {
-                targetPid = (DWORD)pСurrent->UniqueProcessId;
+    while (true){
+        if (pCurrent->ImageName.Buffer != NULL) {
+            if (_wcsicmp(pCurrent->ImageName.Buffer, L"cs2.exe") == 0) {
+                targetPid = (DWORD)pCurrent->UniqueProcessId;
                 break;
             }
-
         }
-    } while (pСurrent->NextEntryOffset);
+        if (pCurrent->NextEntryOffset == 0)
+            break;
+        pCurrent = (PSYSTEM_PROCESS_INFORMATION)((uintptr_t)pCurrent + pCurrent->NextEntryOffset);
+    }
     free(buffer);
+
+    CLIENT_ID cid = { 0 };
+    cid.UniqueProcess = (HANDLE)(uintptr_t)targetPid; // Превращаем число с dword into 8 byte
+    cid.UniqueThread = 0;
+
+    OBJECT_ATTRIBUTES oa;
+    oa.Length = sizeof(OBJECT_ATTRIBUTES); // need for NtOpenprocess
+    oa.RootDirectory = NULL;
+    oa.Attributes = 0;
+    oa.ObjectName = NULL;
+    oa.SecurityDescriptor = NULL;
+    oa.SecurityQualityOfService = NULL;
+
+    HANDLE hProcess = 0;
+    g_ntOpen = ntOpen;
+    Compare(ntOpen, (BYTE*)expected);
+    NTSTATUS status = Syscall_NtOpenProcess(&hProcess, 0x1038, &oa, &cid);
+    cout << hex << status << endl;
+    
+    uintptr_t realAddr2 = (uintptr_t)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtOpenProcess");
+    printf("My: _NtOpenProcess %p | Real: %p | Match: %s\n",
+        (void*)ntOpen,
+        (void*)realAddr2,
+        (ntOpen == realAddr2) ? "YES" : "NO");
+    printf("Found SSN: 0x%X\n", g_ssn);
+    printf("Found Syscall Address: %p\n", (void*)g_syscallAddr);
+
+    printf("\n--- SYSCALL CHECK ---\n");
+    printf("Status: 0x%X\n", status);
+    printf("Handle: %p\n", hProcess);
+
+    if (status == 0 && hProcess != NULL) {
+        printf("Peremoga! Syscall worked, handle is valid.\n");
+    }
+    else {
+        printf("Zrada... Check your SSN or Admin rights.\n");
+    }
+
     while (!GetAsyncKeyState(VK_DELETE)) {}
     return 0;  
 }
