@@ -52,5 +52,3 @@ The following output demonstrates the engine resolving system-level information,
 
 ## ⚠️ Research Disclaimer
 This project is developed strictly for **educational and research purposes** within the fields of Windows Internals/External and Cybersecurity. The primary goal is to explore low-level system architecture and undocumented Windows features.
-
-**Хочешь, я помогу тебе составить список из 5-10 каверзных вопросов, которые могут задать по этому коду, и ответов на них?** Чтобы ты на собеседовании чувствовал себя как рыба в воде.
