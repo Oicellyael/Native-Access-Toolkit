@@ -2,6 +2,8 @@
 ### *Advanced Remote Process Instrumentation via Manual PEB/LDR Traversal*
 
 ![C++](https://img.shields.io/badge/C++-00599C?style=flat&logo=cplusplus)
+![Assembly](https://img.shields.io/badge/Assembly-MASM_x64-red?style=flat&logo=assemblyscript)
+![Security](https://img.shields.io/badge/Research-Security-red?style=flat)
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows)
 
 
