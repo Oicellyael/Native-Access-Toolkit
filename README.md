@@ -41,6 +41,11 @@ A high-performance PE header parser that resolves system API addresses independe
 * `indirect.asm`: MASM procedures for the syscall trampoline and low-level register access.
 * `asm.h` / `asm.cpp`: Support routines for the low-level assembly layer. Manual definitions of internal structures (`PEB`, `LDR_DATA_TABLE_ENTRY`, `SYSTEM_HANDLE_TABLE_ENTRY_INFO`). 
 
+
+<img width="836" height="470" alt="image" src="https://github.com/user-attachments/assets/d12f2cff-613d-4548-8724-e4458422c1d3" />
+
+
+
 ## ⚠️ Engineering Research Disclaimer
 
 This project is developed for **educational and research purposes** within the fields of Windows Systems Programming and Cybersecurity.  The primary goal is to explore low-level architectural boundaries and the mechanics of user-to-kernel mode transitions.
